@@ -11,6 +11,8 @@ except:
 np.set_printoptions(precision=4, suppress=True, linewidth=200)
 args = types.SimpleNamespace()
 
+print('\n\nChatRWKV project: https://github.com/BlinkDL/ChatRWKV')
+
 ########################################################################################################
 
 args.RUN_DEVICE = "cuda"  # cuda // cpu
@@ -20,7 +22,9 @@ args.FLOAT_MODE = "fp16"
 os.environ["RWKV_JIT_ON"] = '1' # '1' or '0'. very useful for fp32, but might be harmful for GPU fp16. please benchmark !!!
 
 CHAT_LANG = 'English' # English // Chinese // more to come
+
 QA_PROMPT = False # True: Q & A prompt // False: User & Bot prompt
+# 中文问答设置QA_PROMPT=True（只能问答，问答效果更好，但不能闲聊） 中文聊天设置QA_PROMPT=False（可以闲聊，但需要大模型才适合闲聊）
 
 # Download RWKV-4 models from https://huggingface.co/BlinkDL
 
@@ -41,25 +45,6 @@ elif CHAT_LANG == 'Chinese':
     # args.MODEL_NAME = '/fsx/BlinkDL/HF-MODEL/rwkv-4-pile-1b5/RWKV-4-Pile-1B5-EngChn-test4-20230115'
     # args.MODEL_NAME = '/fsx/BlinkDL/CODE/_PUBLIC_/RWKV-LM/RWKV-v4neo/7-run1z/rwkv-490'
     # args.MODEL_NAME = '/fsx/BlinkDL/CODE/_PUBLIC_/RWKV-LM/RWKV-v4neo/1.5-run1z/rwkv-415'
-
-if '-169M-' in args.MODEL_NAME:
-    args.n_layer = 12
-    args.n_embd = 768
-if '-430M-' in args.MODEL_NAME:
-    args.n_layer = 24
-    args.n_embd = 1024
-if '-1B5-' in args.MODEL_NAME or '/1.5-' in args.MODEL_NAME:
-    args.n_layer = 24
-    args.n_embd = 2048
-elif '-3B-' in args.MODEL_NAME or '/3-' in args.MODEL_NAME:
-    args.n_layer = 32
-    args.n_embd = 2560
-elif '-7B-' in args.MODEL_NAME or '/7-' in args.MODEL_NAME:
-    args.n_layer = 32
-    args.n_embd = 4096
-elif '-14B-' in args.MODEL_NAME or '/14-' in args.MODEL_NAME or '/14b-' in args.MODEL_NAME:
-    args.n_layer = 40
-    args.n_embd = 5120
 
 args.ctx_len = 1024
 
@@ -139,15 +124,33 @@ say something --> chat with bot. use \\n for new line.
 
 Now talk with the bot and enjoy. Remember to +reset periodically to clean up the bot's memory. Use RWKV-4 14B for best results.
 This is not instruct-tuned for conversation yet, so don't expect good quality. Better use +gen for free generation.
+
+Prompt is VERY important. Try all prompts on https://github.com/BlinkDL/ChatRWKV first.
 '''
 elif CHAT_LANG == 'Chinese':
-    user = "Q"
-    bot = "A"
     interface = ":"
-    init_prompt = f'''
+    if QA_PROMPT:
+        user = "Q"
+        bot = "A"
+        init_prompt = f'''
 Expert Questions & Helpful Answers
 
 Ask Research Experts
+
+'''
+    else:
+        user = "User"
+        bot = "Bot"
+        init_prompt = f'''
+The following is a verbose and detailed conversation between an AI assistant called {bot}, and a human user called {user}. {bot} is intelligent, knowledgeable, wise and polite.
+
+{user}{interface} wat is lhc
+
+{bot}{interface} LHC is a high-energy particle collider, built by CERN, and completed in 2008. They used it to confirm the existence of the Higgs boson in 2012.
+
+{user}{interface} 企鹅会飞吗
+
+{bot}{interface} 企鹅是不会飞的。它们的翅膀主要用于游泳和平衡，而不是飞行。
 
 '''
     HELP_MSG = '''指令:
@@ -162,9 +165,23 @@ Ask Research Experts
 +++ --> 继续 +gen / +qa / +qq 的回答
 ++ --> 换个 +gen / +qa / +qq 的回答
 
-现在可以输入内容和机器人聊天（注意它不大懂中文，它可能更懂英文）。请经常使用 +reset 重置机器人记忆。
+作者：彭博 请关注我的知乎: https://zhuanlan.zhihu.com/p/603840957
+
+如果喜欢，欢迎看我们的优质护眼灯: https://withablink.taobao.com
+
+现在可以输入内容和机器人聊天（注意它不大懂中文，它更懂英文）。请经常使用 +reset 重置机器人记忆。
 目前没有“重复惩罚”，所以机器人有时会重复，此时必须使用 + 换成正常回答，以免污染电脑记忆。
 注意：和上下文无关的独立问题，必须用 +qa 或 +qq 问，以免污染电脑记忆。
+
+请先试下列咒语，理解咒语的写法！咒语至关重要。
++gen \\n活动出席发言稿：\\n大家好，
++gen \\n怎样创立一家快速盈利的AI公司：\\n1.
++gen 二向箔是一种超级武器，它的原理是
++gen \\nimport torch
+【下面这些多试几次】
++qq 请以《我的驴》为题写一篇作文
++qq 请以《企鹅》为题写一首诗歌
++qq 请设定一个奇幻世界，告诉我详细的世界设定。
 '''
 
 # Load Model
@@ -221,10 +238,9 @@ def load_all_stat(srv, name):
 print(f'\nRun prompt...')
 
 out = run_rnn(tokenizer.encode(init_prompt))
+save_all_stat('', 'chat_init', out)
 gc.collect()
 torch.cuda.empty_cache()
-
-save_all_stat('', 'chat_init', out)
 
 srv_list = ['dummy_server']
 for s in srv_list:
